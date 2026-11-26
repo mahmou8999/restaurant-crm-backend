@@ -14,6 +14,7 @@ Laravel بيكلم Evolution على `http://127.0.0.1:8080` عن طريق HTTP
 
 - Node.js 20 أو أعلى (`node --version`)
 - Git
+- MySQL شغالة على `127.0.0.1:3307` (نفس اللي Laravel شغال عليها)
 - مفتاح `EVOLUTION_API_KEY` متظبط في ملف `.env` بتاع Laravel
   (لازم يبقى نفس المفتاح اللي Evolution هيشتغل بيه، وإلا Laravel
   هيرجع 401 ومش هيطلع QR)
@@ -34,7 +35,9 @@ Laravel بيكلم Evolution على `http://127.0.0.1:8080` عن طريق HTTP
 3. يعمل `npm install` و `npm run build` لو لسه متعملوش.
 4. يظبط ملف `.env` بتاع Evolution: `SERVER_PORT=8080` و
    `AUTHENTICATION_API_KEY` بنفس قيمة `EVOLUTION_API_KEY` اللي في
-   `.env` بتاع Laravel، و `DATABASE_ENABLED=false`.
+   `.env` بتاع Laravel، و `DATABASE_PROVIDER=mysql` على نفس MySQL
+   اللي Laravel شغال عليها (`127.0.0.1:3307`) بقاعدة بيانات اسمها
+   `evolution` (السكربت بينشئها وجداولها لو مش موجودة).
 5. يشغّل Evolution على `http://127.0.0.1:8080`.
 
 سيب نافذة PowerShell دي مفتوحة طول ما انت عايز الواتساب شغال —
@@ -54,19 +57,26 @@ Copy-Item .env.example .env
 ```env
 SERVER_PORT=8080
 AUTHENTICATION_API_KEY=<نفس مفتاح EVOLUTION_API_KEY في .env بتاع Laravel بالظبط>
-DATABASE_ENABLED=false
+DATABASE_PROVIDER=mysql
+DATABASE_CONNECTION_URI=mysql://root:@127.0.0.1:3307/evolution
+DATABASE_ENABLED=true
 ```
 
-وبعدين:
+وأنشئ قاعدة البيانات والجداول (على نفس MySQL اللي Laravel شغال عليها):
 
 ```powershell
+php ..\backend\artisan tinker --execute "DB::statement('CREATE DATABASE IF NOT EXISTS evolution');"
 npm run db:generate
+Copy-Item prisma\mysql-migrations\* prisma\migrations -Recurse -Force
+npx prisma migrate deploy --schema prisma\mysql-schema.prisma
 npm run build
 npm run start:prod
 ```
 
 (`db:generate` بيولّد Prisma client اللي الـ build محتاجه،
-ولو متعملش الـ build بيفشل بأخطاء `has no exported member`.)
+ولو متعملش الـ build بيفشل بأخطاء `has no exported member`.
+ولازم قاعدة بيانات حقيقية — حتى مع `DATABASE_ENABLED=false` السيرفر
+بيحاول يتصل بقاعدة البيانات عند التشغيل وبيقع بخطأ `P1001` لو مش موجودة.)
 
 ## التأكد إنه شغال
 
@@ -76,12 +86,14 @@ npm run start:prod
    تجريبي الأول، مش رقم المطعم**.
 4. بعد الاتصال، جرّب رسالة تجريبية من Postman أو من الفرونت.
 
-## لو التشغيل وقف على قاعدة البيانات
+## قاعدة البيانات
 
-`DATABASE_ENABLED=false` ممكن متكفيش في نسخة Evolution دي، ولو
-السيرفر اشتكى من قاعدة البيانات لازم PostgreSQL أو MySQL مع
-`DATABASE_PROVIDER` و `npm run db:generate` و `npm run db:deploy`
-قبل التشغيل.
+Evolution بيتصل بقاعدة البيانات عند التشغيل حتى لو
+`DATABASE_ENABLED=false` — قيمة وهمية في `DATABASE_CONNECTION_URI`
+بتوقع السيرفر بخطأ `P1001` (مش قادر يوصل لقاعدة البيانات).
+عشان كده السكربت بيستخدم MySQL اللي Laravel شغال عليها أصلاً
+(`127.0.0.1:3307`) وينشئ قاعدة بيانات `evolution` وجداولها
+(`prisma migrate deploy`) قبل التشغيل.
 
 ## ملاحظات
 

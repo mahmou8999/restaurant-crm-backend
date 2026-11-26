@@ -63,16 +63,17 @@ if (-not (Test-Path 'node_modules')) {
 
 # Configure Evolution's .env with Laravel's key
 $EvolutionEnv = Join-Path $EvolutionDir '.env'
-# DATABASE_CONNECTION_URI is a placeholder so Prisma validates the schema
-# at startup (missing it crashes the server with P1012); with
-# DATABASE_ENABLED=false Evolution does not query the database.
+# Evolution connects to the database at startup even with
+# DATABASE_ENABLED=false (a placeholder URI crashes with P1001), so it
+# uses the same MySQL Laravel already runs on (127.0.0.1:3307, root,
+# no password) with a real 'evolution' database.
 $wanted = [ordered]@{
     'SERVER_TYPE'            = 'http'
     'SERVER_PORT'            = '8080'
     'AUTHENTICATION_API_KEY' = $apiKey
-    'DATABASE_PROVIDER'      = 'postgresql'
-    'DATABASE_CONNECTION_URI' = 'postgresql://postgres:postgres@127.0.0.1:5432/evolution'
-    'DATABASE_ENABLED'       = 'false'
+    'DATABASE_PROVIDER'      = 'mysql'
+    'DATABASE_CONNECTION_URI' = 'mysql://root:@127.0.0.1:3307/evolution'
+    'DATABASE_ENABLED'       = 'true'
 }
 $lines = @()
 if (Test-Path $EvolutionEnv) {
@@ -90,14 +91,31 @@ foreach ($key in $wanted.Keys) {
 }
 $lines | Set-Content $EvolutionEnv -Encoding utf8
 
-if (-not (Test-Path 'dist\main.js')) {
+# Rebuild when dist/main.js is missing or when the database provider
+# changed (the Prisma client and migrations are provider-specific).
+$providerMarker = Join-Path $EvolutionDir '.evolution-build-provider'
+$builtProvider = ''
+if (Test-Path $providerMarker) { $builtProvider = (Get-Content $providerMarker -Raw).Trim() }
+if ((-not (Test-Path 'dist\main.js')) -or ($builtProvider -ne 'mysql')) {
+    Write-Host "Creating the evolution database in MySQL (if missing)..."
+    php (Join-Path $BackendDir 'artisan') tinker --execute "DB::statement('CREATE DATABASE IF NOT EXISTS evolution');"
+    if ($LASTEXITCODE -ne 0) { throw "Could not create the evolution database. Is MySQL running on 127.0.0.1:3307 (the same MySQL Laravel uses)?" }
+
     Write-Host "Generating Prisma client (npm run db:generate)..."
     npm run db:generate
     if ($LASTEXITCODE -ne 0) { throw "Prisma client generation failed (npm run db:generate). See the errors above." }
 
+    Write-Host "Creating Evolution tables (prisma migrate deploy)..."
+    New-Item -ItemType Directory -Force -Path (Join-Path $EvolutionDir 'prisma\migrations') | Out-Null
+    Copy-Item (Join-Path $EvolutionDir 'prisma\mysql-migrations\*') (Join-Path $EvolutionDir 'prisma\migrations') -Recurse -Force
+    npx prisma migrate deploy --schema prisma\mysql-schema.prisma
+    if ($LASTEXITCODE -ne 0) { throw "Evolution database migration failed (prisma migrate deploy). See the errors above." }
+
     Write-Host "Building Evolution (npm run build)..."
     npm run build
     if ($LASTEXITCODE -ne 0) { throw "Evolution build failed (npm run build). See the errors above." }
+
+    'mysql' | Set-Content $providerMarker -Encoding ascii
 }
 
 Write-Host ""
