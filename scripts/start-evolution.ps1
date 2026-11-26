@@ -1,11 +1,13 @@
-# start-evolution.ps1 — تشغيل Evolution API من الكود مباشرة (Node.js) من غير Docker.
+﻿# start-evolution.ps1 - Run Evolution API from source (Node.js), no Docker.
 #
-# الاستخدام: من PowerShell داخل مجلد الباك اند:
+# Usage: from PowerShell inside the backend folder:
 #   .\scripts\start-evolution.ps1
 #
-# السكربت بيقرأ EVOLUTION_API_KEY من .env بتاع Laravel وبيستخدمه
-# كمفتاح لـ Evolution (AUTHENTICATION_API_KEY)، فالمفتاحين يفضلوا
-# متطابقين. سيب النافذة دي مفتوحة طول ما انت عايز الواتساب شغال.
+# The script reads EVOLUTION_API_KEY from Laravel's .env and uses it
+# as Evolution's AUTHENTICATION_API_KEY, so both keys stay identical.
+# Keep this window open while you want WhatsApp connected.
+# (English-only on purpose: Windows PowerShell 5.1 misreads UTF-8
+#  without BOM, which breaks scripts containing Arabic text.)
 
 $ErrorActionPreference = 'Stop'
 
@@ -13,7 +15,7 @@ $BackendDir = Split-Path -Parent $PSScriptRoot
 $EnvFile = Join-Path $BackendDir '.env'
 
 if (-not (Test-Path $EnvFile)) {
-    throw "ملف .env مش موجود في $BackendDir — انسخ .env.example لـ .env الأول وظبّط EVOLUTION_API_KEY."
+    throw ".env not found in $BackendDir - copy .env.example to .env first and set EVOLUTION_API_KEY."
 }
 
 $apiKey = $null
@@ -24,41 +26,41 @@ foreach ($line in Get-Content $EnvFile) {
     }
 }
 if ([string]::IsNullOrWhiteSpace($apiKey)) {
-    throw "EVOLUTION_API_KEY فاضي في .env — حط مفتاح فيه الأول."
+    throw "EVOLUTION_API_KEY is empty in .env - set a key there first."
 }
 
 # Node.js 20+
 try {
     $nodeRaw = (node --version).Trim()
 } catch {
-    throw "Node.js مش متسطب — نزّله من https://nodejs.org/ (إصدار 20 أو أعلى)."
+    throw "Node.js is not installed - download it from https://nodejs.org/ (version 20 or higher)."
 }
 $nodeMajor = [int]($nodeRaw.TrimStart('v').Split('.')[0])
 if ($nodeMajor -lt 20) {
-    throw "Node.js عندك $nodeRaw — لازم إصدار 20 أو أعلى."
+    throw "Node.js is $nodeRaw - version 20 or higher is required."
 }
 
 try {
     $null = git --version
 } catch {
-    throw "Git مش متسطب — نزّله من https://git-scm.com/."
+    throw "Git is not installed - download it from https://git-scm.com/."
 }
 
 $EvolutionDir = Join-Path (Split-Path -Parent $BackendDir) 'evolution-api'
 
 if (-not (Test-Path $EvolutionDir)) {
-    Write-Host "بنزّل Evolution من GitHub..."
+    Write-Host "Cloning Evolution from GitHub..."
     git clone https://github.com/evolution-foundation/evolution-api.git $EvolutionDir
 }
 
 Set-Location $EvolutionDir
 
 if (-not (Test-Path 'node_modules')) {
-    Write-Host "بنثبّت حزم Evolution (npm install)..."
+    Write-Host "Installing Evolution packages (npm install)..."
     npm install
 }
 
-# ظبط .env بتاع Evolution بالمفتاح بتاع Laravel
+# Configure Evolution's .env with Laravel's key
 $EvolutionEnv = Join-Path $EvolutionDir '.env'
 $wanted = [ordered]@{
     'SERVER_TYPE'            = 'http'
@@ -83,12 +85,12 @@ foreach ($key in $wanted.Keys) {
 $lines | Set-Content $EvolutionEnv -Encoding utf8
 
 if (-not (Test-Path 'dist')) {
-    Write-Host "بنبني Evolution (npm run build)..."
+    Write-Host "Building Evolution (npm run build)..."
     npm run build
 }
 
 Write-Host ""
-Write-Host "Evolution هيشتغل على http://127.0.0.1:8080 — سيب النافذة دي مفتوحة."
-Write-Host "بعدها اطلب الـ QR من صفحة WhatsAppConnect في الفرونت (برقم تجريبي الأول)."
+Write-Host "Evolution will run on http://127.0.0.1:8080 - keep this window open."
+Write-Host "Then request the QR from the WhatsAppConnect page in the frontend (test number first)."
 Write-Host ""
 npm run start:prod
