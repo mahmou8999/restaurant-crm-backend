@@ -101,6 +101,19 @@ if ((-not (Test-Path 'dist\main.js')) -or ($builtProvider -ne 'mysql')) {
     php (Join-Path $BackendDir 'artisan') tinker --execute "DB::statement('CREATE DATABASE IF NOT EXISTS evolution');"
     if ($LASTEXITCODE -ne 0) { throw "Could not create the evolution database. Is MySQL running on 127.0.0.1:3307 (the same MySQL Laravel uses)?" }
 
+    Write-Host "Checking the MySQL storage engine..."
+    $storageEngine = php (Join-Path $BackendDir 'artisan') tinker --execute "echo DB::selectOne('SELECT @@GLOBAL.default_storage_engine AS engine')->engine;"
+    if ($LASTEXITCODE -ne 0) { throw "Could not read the MySQL default storage engine." }
+    if ($storageEngine.Trim() -ne 'InnoDB') {
+        throw "MySQL default storage engine is '$($storageEngine.Trim())'. Evolution migrations require InnoDB. Set default-storage-engine=InnoDB under [mysqld] in MySQL's my.ini and restart MySQL. Then back up and recreate only the evolution database before rerunning this script; its existing tables were created with the wrong engine."
+    }
+
+    $myisamTables = php (Join-Path $BackendDir 'artisan') tinker --execute "echo DB::selectOne('SELECT COUNT(*) AS table_count FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = ? AND ENGINE = ?', ['evolution', 'BASE TABLE', 'MyISAM'])->table_count;"
+    if ($LASTEXITCODE -ne 0) { throw "Could not check the storage engines of tables in the evolution database." }
+    if ([int]$myisamTables.Trim() -gt 0) {
+        throw "The evolution database still contains $($myisamTables.Trim()) MyISAM table(s), which do not have the foreign keys expected by Evolution migrations. Back up and recreate only the evolution database, then rerun this script."
+    }
+
     Write-Host "Generating Prisma client (npm run db:generate)..."
     npm run db:generate
     if ($LASTEXITCODE -ne 0) { throw "Prisma client generation failed (npm run db:generate). See the errors above." }

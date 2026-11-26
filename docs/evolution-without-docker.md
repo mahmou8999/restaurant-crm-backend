@@ -15,6 +15,8 @@ Laravel بيكلم Evolution على `http://127.0.0.1:8080` عن طريق HTTP
 - Node.js 20 أو أعلى (`node --version`)
 - Git
 - MySQL شغالة على `127.0.0.1:3307` (نفس اللي Laravel شغال عليها)
+- محرك MySQL الافتراضي لازم يكون `InnoDB`؛ Evolution migrations تعتمد على
+  المفاتيح الأجنبية التي لا يدعمها محرك `MyISAM`.
 - مفتاح `EVOLUTION_API_KEY` متظبط في ملف `.env` بتاع Laravel
   (لازم يبقى نفس المفتاح اللي Evolution هيشتغل بيه، وإلا Laravel
   هيرجع 401 ومش هيطلع QR)
@@ -77,6 +79,32 @@ npm run start:prod
 ولو متعملش الـ build بيفشل بأخطاء `has no exported member`.
 ولازم قاعدة بيانات حقيقية — حتى مع `DATABASE_ENABLED=false` السيرفر
 بيحاول يتصل بقاعدة البيانات عند التشغيل وبيقع بخطأ `P1001` لو مش موجودة.)
+
+## لو ظهر خطأ `Can't DROP FOREIGN KEY` أثناء الـ migration
+
+ده غالبًا معناه إن محرك MySQL الافتراضي هو `MyISAM`. هذا المحرك لا ينشئ
+المفاتيح الأجنبية التي تتوقع Evolution وجودها، فتسجل migrations السابقة
+كأنها نجحت رغم غياب هذه القيود.
+
+1. افحص المحرك:
+
+   ```sql
+   SELECT @@GLOBAL.default_storage_engine;
+   ```
+
+   لو النتيجة `MyISAM`، أضف الإعداد التالي تحت `[mysqld]` في ملف `my.ini`:
+
+   ```ini
+   default-storage-engine=InnoDB
+   ```
+
+   ثم أعد تشغيل خدمة MySQL وتأكد أن الاستعلام يرجع `InnoDB`.
+2. قاعدة `evolution` الحالية وجداولها أُنشئت بالفعل بمحرك `MyISAM`، وحالة
+   migration الفاشلة محفوظة فيها. بعد أخذ نسخة احتياطية والتأكد أن القاعدة
+   لا تحتوي بيانات Evolution تحتاجها، احذف وأعد إنشاء **قاعدة `evolution` فقط**.
+   لا تحذف قاعدة Laravel أو أي قاعدة أخرى.
+3. أعد تشغيل `.\scripts\start-evolution.ps1`. السكربت الآن يوقف التشغيل
+   برسالة واضحة إذا لم يكن المحرك `InnoDB` أو بقيت جداول `MyISAM`.
 
 ## التأكد إنه شغال
 
