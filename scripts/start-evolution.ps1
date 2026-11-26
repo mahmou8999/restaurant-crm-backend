@@ -63,11 +63,15 @@ if (-not (Test-Path 'node_modules')) {
 
 # Configure Evolution's .env with Laravel's key
 $EvolutionEnv = Join-Path $EvolutionDir '.env'
+# DATABASE_CONNECTION_URI is a placeholder so Prisma validates the schema
+# at startup (missing it crashes the server with P1012); with
+# DATABASE_ENABLED=false Evolution does not query the database.
 $wanted = [ordered]@{
     'SERVER_TYPE'            = 'http'
     'SERVER_PORT'            = '8080'
     'AUTHENTICATION_API_KEY' = $apiKey
     'DATABASE_PROVIDER'      = 'postgresql'
+    'DATABASE_CONNECTION_URI' = 'postgresql://postgres:postgres@127.0.0.1:5432/evolution'
     'DATABASE_ENABLED'       = 'false'
 }
 $lines = @()
