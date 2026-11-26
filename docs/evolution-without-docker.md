@@ -60,9 +60,13 @@ DATABASE_ENABLED=false
 وبعدين:
 
 ```powershell
+npm run db:generate
 npm run build
 npm run start:prod
 ```
+
+(`db:generate` بيولّد Prisma client اللي الـ build محتاجه،
+ولو متعملش الـ build بيفشل بأخطاء `has no exported member`.)
 
 ## التأكد إنه شغال
 

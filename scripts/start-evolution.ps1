@@ -58,6 +58,7 @@ Set-Location $EvolutionDir
 if (-not (Test-Path 'node_modules')) {
     Write-Host "Installing Evolution packages (npm install)..."
     npm install
+    if ($LASTEXITCODE -ne 0) { throw "npm install failed. See the errors above." }
 }
 
 # Configure Evolution's .env with Laravel's key
@@ -66,6 +67,7 @@ $wanted = [ordered]@{
     'SERVER_TYPE'            = 'http'
     'SERVER_PORT'            = '8080'
     'AUTHENTICATION_API_KEY' = $apiKey
+    'DATABASE_PROVIDER'      = 'postgresql'
     'DATABASE_ENABLED'       = 'false'
 }
 $lines = @()
@@ -85,8 +87,13 @@ foreach ($key in $wanted.Keys) {
 $lines | Set-Content $EvolutionEnv -Encoding utf8
 
 if (-not (Test-Path 'dist')) {
+    Write-Host "Generating Prisma client (npm run db:generate)..."
+    npm run db:generate
+    if ($LASTEXITCODE -ne 0) { throw "Prisma client generation failed (npm run db:generate). See the errors above." }
+
     Write-Host "Building Evolution (npm run build)..."
     npm run build
+    if ($LASTEXITCODE -ne 0) { throw "Evolution build failed (npm run build). See the errors above." }
 }
 
 Write-Host ""
