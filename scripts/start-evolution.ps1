@@ -86,7 +86,7 @@ foreach ($key in $wanted.Keys) {
 }
 $lines | Set-Content $EvolutionEnv -Encoding utf8
 
-if (-not (Test-Path 'dist')) {
+if (-not (Test-Path 'dist\main.js')) {
     Write-Host "Generating Prisma client (npm run db:generate)..."
     npm run db:generate
     if ($LASTEXITCODE -ne 0) { throw "Prisma client generation failed (npm run db:generate). See the errors above." }
