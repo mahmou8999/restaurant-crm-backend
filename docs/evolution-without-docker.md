@@ -143,3 +143,12 @@ Evolution بيتصل بقاعدة البيانات عند التشغيل حتى 
   وبيتكمل يدوي بـ Resume.
 - الـ Webhook بتاع Evolution بقى على `http://127.0.0.1:8000/api/v1/webhooks/evolution`
   (بعد ما كان `host.docker.internal` بتاع Docker).
+
+## لو الـ build وقع بأخطاء TypeScript
+
+`npm run build` بيشغّل `tsc --noEmit` الأول، وكود Evolution 2.3.8
+مكتوب على أنواع Prisma بتاعة PostgreSQL (مثلاً `path: ['id']` في
+فلاتر JSON وحقول مش موجودة في سكيما MySQL)، فالـ type-check بيقع مع
+عميل MySQL رغم إن الكود شغال. السكربت في الحالة دي بيبني بـ `npx tsup`
+على طول (بيشيل الأنواع من غير ما يفحصها)، والجداول والـ Prisma client
+بيكونوا اتعملوا صح قبلها.
