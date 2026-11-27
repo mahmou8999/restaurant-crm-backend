@@ -33,6 +33,7 @@ class EvolutionSender implements WhatsAppSenderInterface
             if ($contents === false) {
                 throw new RuntimeException('The media file could not be read.');
             }
+
             $media = 'data:'.$mimeType.';base64,'.base64_encode($contents);
         }
 
@@ -69,8 +70,11 @@ class EvolutionSender implements WhatsAppSenderInterface
             ]);
         } catch (RuntimeException $exception) {
             $message = strtolower($exception->getMessage());
-            $instanceExists = in_array($exception->getCode(), [400, 409, 422], true)
-                && (str_contains($message, 'already') || str_contains($message, 'exists'));
+            // Evolution answers 403 "already in use" when the instance exists;
+            // treat that like the 400/409/422 already-exists cases and fall
+            // through to fetching the QR code instead of failing.
+            $instanceExists = in_array($exception->getCode(), [400, 403, 409, 422], true)
+                && (str_contains($message, 'already') || str_contains($message, 'exists') || str_contains($message, 'in use'));
             if ($exception->getCode() !== 409 && ! $instanceExists) {
                 throw $exception;
             }

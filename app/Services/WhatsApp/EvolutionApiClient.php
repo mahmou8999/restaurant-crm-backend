@@ -50,10 +50,8 @@ class EvolutionApiClient
         }
 
         if (! $response->successful()) {
-            $message = data_get($response->json(), 'message')
-                ?? data_get($response->json(), 'error')
-                ?? 'Evolution API request failed.';
-            $normalizedMessage = strtolower((string) $message);
+            $message = $this->errorMessage($response);
+            $normalizedMessage = strtolower($message);
             $isDisconnected = str_contains($normalizedMessage, 'not connected')
                 || str_contains($normalizedMessage, 'connection closed')
                 || str_contains($normalizedMessage, 'disconnected');
@@ -61,13 +59,37 @@ class EvolutionApiClient
             if ($response->serverError()
                 || in_array($response->status(), [408, 429], true)
                 || $isDisconnected) {
-                throw new WhatsAppConnectionException((string) $message, $response->status());
+                throw new WhatsAppConnectionException($message, $response->status());
             }
 
-            throw new RuntimeException((string) $message, $response->status());
+            throw new RuntimeException($message, $response->status());
         }
 
         return $response->json() ?? [];
+    }
+
+    /**
+     * Evolution puts the useful detail in response.message (a string or an
+     * array of validation messages), while the top-level message/error fields
+     * only carry the HTTP status text (e.g. "Bad Request").
+     */
+    private function errorMessage(Response $response): string
+    {
+        $json = $response->json() ?? [];
+
+        $detail = data_get($json, 'response.message')
+            ?? data_get($json, 'message')
+            ?? data_get($json, 'error')
+            ?? 'Evolution API request failed.';
+
+        if (is_array($detail)) {
+            $detail = implode('; ', array_map(
+                fn ($item) => is_array($item) ? implode(' ', $item) : (string) $item,
+                $detail
+            ));
+        }
+
+        return (string) $detail;
     }
 
     private function request(): PendingRequest
@@ -79,6 +101,7 @@ class EvolutionApiClient
 
         return Http::withHeaders(['apikey' => $apiKey])
             ->acceptJson()
+            ->asJson()
             ->connectTimeout(5)
             ->timeout(15);
     }
