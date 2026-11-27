@@ -91,12 +91,38 @@ foreach ($key in $wanted.Keys) {
 }
 $lines | Set-Content $EvolutionEnv -Encoding utf8
 
+# Patch the WhatsApp version fetch: upstream src/utils/fetchLatestWaWebVersion.ts
+# fetches https://web.whatsapp.com/sw.js with NO timeout, and both GET / and the
+# Baileys connection await it. On networks with broken TLS (mobile hotspot)
+# that request hangs forever, so the server accepts connections but never
+# answers. Add a 5s timeout and fall back to Baileys' pinned version
+# ([2, 3000, 1043857760] from WhiskeySockets/Baileys master) instead of
+# fetching it from GitHub, which is unreachable on the same network.
+$patched = $false
+$waVersionFile = Join-Path $EvolutionDir 'src\utils\fetchLatestWaWebVersion.ts'
+$waVersionText = Get-Content $waVersionFile -Raw
+if (-not $waVersionText.Contains('timeout: 5000')) {
+    if (-not $waVersionText.Contains("responseType: 'json',")) { throw "Cannot patch fetchLatestWaWebVersion.ts: expected line not found." }
+    $waVersionText = $waVersionText.Replace("responseType: 'json',", "responseType: 'json',`n      timeout: 5000,")
+    $patched = $true
+}
+if ($waVersionText.Contains('fetchLatestBaileysVersion')) {
+    if (-not $waVersionText.Contains('(await fetchLatestBaileysVersion()).version as WAVersion')) { throw "Cannot patch fetchLatestWaWebVersion.ts: expected fallback not found." }
+    $waVersionText = $waVersionText.Replace("(await fetchLatestBaileysVersion()).version as WAVersion", "[2, 3000, 1043857760] as WAVersion")
+    $waVersionText = $waVersionText.Replace("import { fetchLatestBaileysVersion, WAVersion } from 'baileys';", "import { WAVersion } from 'baileys';")
+    $patched = $true
+}
+if ($patched) {
+    Write-Host "Patching the WhatsApp version fetch (5s timeout + pinned fallback version)..."
+    $waVersionText | Set-Content $waVersionFile -Encoding utf8
+}
+
 # Rebuild when dist/main.js is missing or when the database provider
 # changed (the Prisma client and migrations are provider-specific).
 $providerMarker = Join-Path $EvolutionDir '.evolution-build-provider'
 $builtProvider = ''
 if (Test-Path $providerMarker) { $builtProvider = (Get-Content $providerMarker -Raw).Trim() }
-if ((-not (Test-Path 'dist\main.js')) -or ($builtProvider -ne 'mysql')) {
+if ((-not (Test-Path 'dist\main.js')) -or ($builtProvider -ne 'mysql') -or $patched) {
     Write-Host "Creating the evolution database in MySQL (if missing)..."
     php (Join-Path $BackendDir 'artisan') tinker --execute "DB::statement('CREATE DATABASE IF NOT EXISTS evolution');"
     if ($LASTEXITCODE -ne 0) { throw "Could not create the evolution database. Is MySQL running on 127.0.0.1:3307 (the same MySQL Laravel uses)?" }
