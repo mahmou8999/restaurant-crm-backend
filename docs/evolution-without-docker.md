@@ -123,6 +123,15 @@ Evolution بيتصل بقاعدة البيانات عند التشغيل حتى 
 (`127.0.0.1:3307`) وينشئ قاعدة بيانات `evolution` وجداولها
 (`prisma migrate deploy`) قبل التشغيل.
 
+## لو إنشاء الـ QR بيرد `TypeError ... (reading 'state')`
+
+السبب: `DATABASE_SAVE_DATA_INSTANCE` مش متظبطة على `true` في ملف
+`.env` بتاع Evolution، فدالة `defineAuthState()` بترجع `undefined`
+والاتصال بيقع وهو بيقرأ `authState.state`. السكربت بيكتب
+`DATABASE_SAVE_DATA_INSTANCE=true` لوحده في `.env`؛ لو حصل الخطأ ده
+بعد تحديث السكربت، أوقف Evolution وشغّل السكربت تاني عشان ياخد
+القيمة الجديدة، وبعدين اطلب الـ QR من جديد.
+
 ## لو الـ curl على `127.0.0.1:8080` بيعلق من غير رد
 
 السبب: كود Evolution الأصلي بيجيب رقم نسخة واتساب ويب من

@@ -67,6 +67,10 @@ $EvolutionEnv = Join-Path $EvolutionDir '.env'
 # DATABASE_ENABLED=false (a placeholder URI crashes with P1001), so it
 # uses the same MySQL Laravel already runs on (127.0.0.1:3307, root,
 # no password) with a real 'evolution' database.
+# DATABASE_SAVE_DATA_INSTANCE=true is required: without it Evolution's
+# defineAuthState() returns nothing, and the Baileys connection crashes
+# with "Cannot read properties of undefined (reading 'state')" when
+# creating an instance, so no QR code is ever produced.
 $wanted = [ordered]@{
     'SERVER_TYPE'            = 'http'
     'SERVER_PORT'            = '8080'
@@ -74,6 +78,7 @@ $wanted = [ordered]@{
     'DATABASE_PROVIDER'      = 'mysql'
     'DATABASE_CONNECTION_URI' = 'mysql://root:@127.0.0.1:3307/evolution'
     'DATABASE_ENABLED'       = 'true'
+    'DATABASE_SAVE_DATA_INSTANCE' = 'true'
 }
 $lines = @()
 if (Test-Path $EvolutionEnv) {
